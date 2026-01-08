@@ -1,47 +1,69 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { PronunciationType, usePronunciation } from "../pronunciation";
-
-const PRONUNCIATION_TYPE = "pronunciationType";
-
-function expectPronunciation(type: PronunciationType) {
-  const { pronunciation } = usePronunciation();
-
-  expect(pronunciation.value).toBe(type);
-  expect(localStorage.getItem(PRONUNCIATION_TYPE)).toBe(type);
-}
+import { usePronunciation } from "../pronunciation";
 
 describe("pronunciation", () => {
   beforeEach(() => {
-    const { pronunciation } = usePronunciation();
-    pronunciation.value = PronunciationType.American;
     localStorage.clear();
   });
 
-  it("get default pronunciation if it was stored", () => {
-    localStorage.setItem(PRONUNCIATION_TYPE, PronunciationType.British);
+  it("returns false when TTS is unavailable", () => {
+    const originalSpeechSynthesis = (globalThis as any).speechSynthesis;
+    const originalUtterance = (globalThis as any).SpeechSynthesisUtterance;
+    (globalThis as any).speechSynthesis = undefined;
+    (globalThis as any).SpeechSynthesisUtterance = undefined;
 
-    expectPronunciation(PronunciationType.British);
+    const { isTtsSupported, speakEnglish } = usePronunciation();
+    expect(isTtsSupported()).toBe(false);
+    expect(speakEnglish("word")).toBeNull();
+
+    (globalThis as any).speechSynthesis = originalSpeechSynthesis;
+    (globalThis as any).SpeechSynthesisUtterance = originalUtterance;
   });
 
-  it("get default pronunciation if it wasn't stored", () => {
-    expectPronunciation(PronunciationType.American);
-  });
+  it("speaks english when TTS is available", () => {
+    const originalSpeechSynthesis = (globalThis as any).speechSynthesis;
+    const originalUtterance = (globalThis as any).SpeechSynthesisUtterance;
 
-  it("get pronunciation options", () => {
-    const { getPronunciationOptions } = usePronunciation();
+    class MockUtterance {
+      text: string;
+      lang = "";
+      rate = 1;
+      pitch = 1;
+      voice: any = null;
+      onend: null | (() => void) = null;
+      constructor(text: string) {
+        this.text = text;
+      }
+    }
 
-    expect(getPronunciationOptions()).toEqual([
-      { label: "美音", value: "American" },
-      { label: "英音", value: "British" },
-    ]);
-  });
+    const speak = vi.fn();
+    const cancel = vi.fn();
 
-  it("toggle pronunciation", () => {
-    const { togglePronunciation } = usePronunciation();
+    const getVoices = vi.fn(() => {
+      return [
+        { name: "Microsoft David - English (United States)", lang: "en-US" },
+        { name: "Microsoft Zira - English (United States)", lang: "en-US" },
+      ] as any;
+    });
 
-    togglePronunciation(PronunciationType.British);
+    (globalThis as any).SpeechSynthesisUtterance = MockUtterance;
+    (globalThis as any).speechSynthesis = { speak, cancel, getVoices };
 
-    expectPronunciation(PronunciationType.British);
+    const { isTtsSupported, speakEnglish } = usePronunciation();
+    expect(isTtsSupported()).toBe(true);
+
+    const utterance = speakEnglish("hello", { rate: 1.2 });
+    expect(utterance).not.toBeNull();
+    expect((utterance as any).text).toBe("hello");
+    expect((utterance as any).lang).toBe("en-US");
+    expect((utterance as any).rate).toBe(1.2);
+    expect((utterance as any).pitch).toBe(1.15);
+    expect(((utterance as any).voice?.name ?? "").toLowerCase()).toContain("zira");
+    expect(speak).toHaveBeenCalledTimes(1);
+    expect(cancel).toHaveBeenCalledTimes(1);
+
+    (globalThis as any).speechSynthesis = originalSpeechSynthesis;
+    (globalThis as any).SpeechSynthesisUtterance = originalUtterance;
   });
 });

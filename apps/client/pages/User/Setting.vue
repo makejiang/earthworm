@@ -99,23 +99,6 @@
               />
             </td>
           </tr>
-          <tr class="hover">
-            <td class="label-text">切换口音</td>
-            <td class="text-right">
-              <div class="join">
-                <input
-                  v-for="lang in getPronunciationOptions()"
-                  class="btn join-item btn-sm"
-                  type="radio"
-                  name="options"
-                  :value="lang.value"
-                  :aria-label="lang.label"
-                  :checked="pronunciation === lang.value"
-                  @change="togglePronunciation(lang.value as PronunciationType)"
-                />
-              </div>
-            </td>
-          </tr>
         </tbody>
       </table>
     </section>
@@ -180,7 +163,6 @@
 import { useAutoNextQuestion } from "~/composables/user/autoNext";
 import { useErrorTip } from "~/composables/user/errorTip";
 import { GamePlayMode, useGamePlayMode } from "~/composables/user/gamePlayMode";
-import { PronunciationType, usePronunciation } from "~/composables/user/pronunciation";
 import { SHORTCUT_KEY_TYPES, useShortcutKeyMode } from "~/composables/user/shortcutKey";
 import {
   useAutoPlayEnglish,
@@ -195,12 +177,6 @@ const { autoNextQuestion, toggleAutoQuestion } = useAutoNextQuestion();
 const { keyboardSound, toggleKeyboardSound } = useKeyboardSound();
 const { autoPlaySound, toggleAutoPlaySound } = useAutoPronunciation();
 const { autoPlayEnglish, toggleAutoPlayEnglish } = useAutoPlayEnglish();
-const {
-  pronunciation,
-  // 发音配置列表
-  getPronunciationOptions,
-  togglePronunciation,
-} = usePronunciation();
 const { showWordsWidth, toggleAutoWordsWidth } = useShowWordsWidth();
 const { useSpace, toggleUseSpaceSubmitAnswer } = useSpaceSubmitAnswer();
 const { showErrorTip, toggleShowErrorTip } = useErrorTip();

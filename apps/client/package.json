@@ -40,7 +40,8 @@
     "vite": "^5.1.0",
     "vitest": "^1.2.2",
     "vue": "^3.4.6",
-    "vue-router": "^4.2.5"
+    "vue-router": "^4.2.5",
+    "vue-tsc": "^3.2.2"
   },
   "dependencies": {
     "@logto/vue": "^2.2.5",

@@ -1,26 +1,18 @@
 import { usePronunciation } from "~/composables/user/pronunciation";
 
+let currentText = "";
+
 // 便于测试
-// 后面不使用 audio 后也可以不破坏业务逻辑
-const audio = new Audio();
-export function updateSource(src: string) {
-  audio.src = src;
-  audio.load();
+// 这里保留 updateSource/play 这一层 API，但底层改用浏览器 TTS。
+export function updateSource(text: string) {
+  currentText = (text ?? "").trim();
 }
 
-const { getPronunciationUrl } = usePronunciation();
 export function usePlayWordSound() {
-  const wordAudio = new Audio();
   let lastWord = "";
   let isPlaying = false;
 
-  wordAudio.onplay = () => {
-    isPlaying = true;
-  };
-
-  wordAudio.onended = () => {
-    isPlaying = false;
-  };
+  const { speakEnglish, stopSpeaking } = usePronunciation();
 
   function handlePlayWordSound(word: string) {
     if (isPlaying && lastWord === word) {
@@ -28,8 +20,19 @@ export function usePlayWordSound() {
       return;
     }
     lastWord = word;
-    wordAudio.src = getPronunciationUrl(word);
-    wordAudio.play();
+
+    stopSpeaking();
+    isPlaying = true;
+    const utterance = speakEnglish(word, {
+      lang: "en-US",
+      onEnd: () => {
+        isPlaying = false;
+      },
+    });
+    if (!utterance) {
+      isPlaying = false;
+      return;
+    }
   }
 
   return {
@@ -52,30 +55,50 @@ const DefaultPlayOptions = {
 export function play(playOptions?: PlayOptions) {
   const { times, rate, interval } = Object.assign({}, DefaultPlayOptions, playOptions);
 
-  audio.playbackRate = rate;
-  audio.play();
-  if (times > 1) {
-    audio.addEventListener("ended", handleEnded, false);
+  const { speakEnglish, stopSpeaking, isTtsSupported } = usePronunciation();
+
+  let timeoutId: NodeJS.Timeout | undefined;
+  let cancelled = false;
+  let completed = 0;
+
+  function speakOnce() {
+    if (cancelled) return;
+    if (!currentText) return;
+
+    let didEnd = false;
+    const utterance = speakEnglish(currentText, {
+      rate,
+      lang: "en-US",
+      onEnd: () => {
+        if (cancelled || didEnd) return;
+        didEnd = true;
+        completed++;
+        if (completed >= times) return;
+        timeoutId = setTimeout(() => speakOnce(), interval);
+      },
+    });
+
+    if (!utterance) return;
+
+    // If TTS exists but `onend` isn't reliable in the environment, fall back.
+    if (isTtsSupported()) {
+      const ms = Math.min(8000, Math.max(800, currentText.length * 120));
+      timeoutId = setTimeout(() => {
+        if (cancelled || didEnd) return;
+        didEnd = true;
+        completed++;
+        if (completed >= times) return;
+        timeoutId = setTimeout(() => speakOnce(), interval);
+      }, ms + interval);
+    }
   }
 
-  let index = 1;
-  let timeoutId: NodeJS.Timeout;
-  function handleEnded() {
-    timeoutId = setTimeout(() => {
-      if (index < times) {
-        audio.play();
-        index++;
-      } else {
-        index = 1;
-        audio.removeEventListener("ended", handleEnded);
-      }
-    }, interval);
-  }
+  // start
+  speakOnce();
 
   return () => {
-    audio.pause();
-    audio.currentTime = 0;
-    audio.removeEventListener("ended", handleEnded);
+    cancelled = true;
+    stopSpeaking();
     timeoutId && clearTimeout(timeoutId);
   };
 }
